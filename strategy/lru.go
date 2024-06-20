@@ -6,7 +6,7 @@ import "container/list"
 //如果数据最近被访问过，那么将来被访问的概率也会更高。
 //LRU 算法的实现非常简单，维护一个队列，如果某条记录被访问了，则移动到队尾，那么队首则是最近最少访问的数据，淘汰该条记录即可。
 
-type Cache struct {
+type LruCache struct {
 	maxBytes  int64
 	nbytes    int64
 	ll        *list.List
@@ -24,8 +24,8 @@ type entry struct {
 	value value
 }
 
-func NewCache(maxBytes int64, onEvicted func(key string, value value)) *Cache {
-	return &Cache{
+func NewLruCache(maxBytes int64, onEvicted func(key string, value value)) *LruCache {
+	return &LruCache{
 		maxBytes:  maxBytes,
 		ll:        list.New(),
 		cache:     make(map[string]*list.Element),
@@ -33,7 +33,7 @@ func NewCache(maxBytes int64, onEvicted func(key string, value value)) *Cache {
 	}
 }
 
-func (c *Cache) Get(key string) (value value, ok bool) {
+func (c *LruCache) Get(key string) (value value, ok bool) {
 	if ele, ok := c.cache[key]; ok {
 		//双向链表作为队列，队首队尾是相对的，在这里约定 front 为队尾
 		c.ll.MoveToFront(ele)
@@ -43,7 +43,7 @@ func (c *Cache) Get(key string) (value value, ok bool) {
 	return
 }
 
-func (c *Cache) RemoveOldest() {
+func (c *LruCache) RemoveOldest() {
 	ele := c.ll.Back()
 	if ele != nil {
 		c.ll.Remove(ele)
@@ -58,7 +58,7 @@ func (c *Cache) RemoveOldest() {
 	}
 }
 
-func (c *Cache) Add(key string, value value) {
+func (c *LruCache) Add(key string, value value) {
 	if ele, ok := c.cache[key]; ok {
 		c.ll.MoveToFront(ele)
 
@@ -77,6 +77,6 @@ func (c *Cache) Add(key string, value value) {
 	}
 }
 
-func (c *Cache) Len() int {
+func (c *LruCache) Len() int {
 	return c.ll.Len()
 }
