@@ -3,6 +3,7 @@ package jscache
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 )
 
@@ -16,18 +17,19 @@ func (g GetterFunc) Get(key string) ([]byte, error) {
 	return g(key)
 }
 
-type group struct {
+type Group struct {
 	name      string
 	getter    Getter
 	maincache cache
+	peers     PeerPicker
 }
 
 var (
 	mu     sync.Mutex
-	groups = make(map[string]*group)
+	groups = make(map[string]*Group)
 )
 
-func NewGroup(name string, getter Getter, cacheBytes int64) *group {
+func NewGroup(name string, getter Getter, cacheBytes int64) *Group {
 	if getter == nil {
 		panic("nil Getter")
 	}
@@ -35,7 +37,7 @@ func NewGroup(name string, getter Getter, cacheBytes int64) *group {
 	mu.Lock()
 	defer mu.Unlock()
 
-	g := &group{
+	g := &Group{
 		name:      name,
 		getter:    getter,
 		maincache: cache{cacheBytes: cacheBytes},
@@ -45,7 +47,7 @@ func NewGroup(name string, getter Getter, cacheBytes int64) *group {
 	return g
 }
 
-func GetGroup(key string) *group {
+func GetGroup(key string) *Group {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -55,7 +57,7 @@ func GetGroup(key string) *group {
 	return nil
 }
 
-func (g *group) Get(key string) (ByteView, error) {
+func (g *Group) Get(key string) (ByteView, error) {
 	if key == "" {
 		return ByteView{}, errors.New("key is require")
 	}
@@ -68,11 +70,20 @@ func (g *group) Get(key string) (ByteView, error) {
 	return g.load(key)
 }
 
-func (g *group) load(key string) (ByteView, error) {
+func (g *Group) load(key string) (value ByteView, err error) {
+	if g.peers != nil {
+		if peer, ok := g.peers.PickPeer(key); ok {
+			if value, err = g.getFromPeer(peer, key); err == nil {
+				return value, nil
+			}
+
+			log.Println("[GeeCache] Failed to get from peer", err)
+		}
+	}
 	return g.getLocally(key)
 }
 
-func (g *group) getLocally(key string) (ByteView, error) {
+func (g *Group) getLocally(key string) (ByteView, error) {
 	bytes, err := g.getter.Get(key)
 	if err != nil {
 		return ByteView{}, err
@@ -83,6 +94,22 @@ func (g *group) getLocally(key string) (ByteView, error) {
 	return value, nil
 }
 
-func (g *group) populateCache(key string, value ByteView) {
+func (g *Group) populateCache(key string, value ByteView) {
 	g.maincache.Add(key, value)
+}
+
+func (g *Group) RegisterPeers(peers PeerPicker) {
+	if g.peers != nil {
+		panic("RegisterPeerPicker called more than once")
+	}
+	g.peers = peers
+}
+
+func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
+	bytes, err := peer.Get(g.name, key)
+	if err != nil {
+		return ByteView{}, err
+	}
+
+	return ByteView{b: bytes}, nil
 }
