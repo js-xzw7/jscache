@@ -28,7 +28,7 @@ func startCacheServer(addr string, addrs []string, gee *jscache.Group) {
 	peers := jscache.NewHTTPPool(addr)
 	peers.Set(addrs...)
 	gee.RegisterPeers(peers)
-	log.Println("geecache is running at", addr)
+	log.Println("jscache is running at", addr)
 	log.Fatal(http.ListenAndServe(addr[7:], peers))
 }
 
@@ -53,7 +53,7 @@ func startAPIServer(apiAddr string, gee *jscache.Group) {
 func main() {
 	var port int
 	var api bool
-	flag.IntVar(&port, "port", 8001, "Geecache server port")
+	flag.IntVar(&port, "port", 8001, "jscache server port")
 	flag.BoolVar(&api, "api", false, "Start a api server?")
 	flag.Parse()
 
